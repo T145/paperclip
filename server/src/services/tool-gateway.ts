@@ -10096,6 +10096,15 @@ export function createToolGatewayService(
       await assertGatewayTokenAction(session, "tools/call");
       let invocationId = String(randomUUID());
       const startedAt = Date.now();
+      // tool_call_events.action_request_id is a UUID column. A caller can send an
+      // empty approvedActionRequestId, which the route keeps as a string and the
+      // audit insert would bind as "", failing the insert. Treat a blank value as
+      // absent so the audit row is written with a null id instead of erroring.
+      const approvedActionRequestId =
+        typeof input.approvedActionRequestId === "string" &&
+        input.approvedActionRequestId.trim() !== ""
+          ? input.approvedActionRequestId
+          : null;
 
       // A retry carries the signed originating operation, even if steering has
       // since accepted instructions from someone else in this same run.
@@ -11001,7 +11010,7 @@ export function createToolGatewayService(
         }
         await writeToolCallEvent({
           invocationId,
-          actionRequestId: input.approvedActionRequestId ?? null,
+          actionRequestId: approvedActionRequestId,
           session,
           eventType: "call_completed",
           outcome: "success",
@@ -11136,7 +11145,7 @@ export function createToolGatewayService(
         }
         await writeToolCallEvent({
           invocationId,
-          actionRequestId: input.approvedActionRequestId ?? null,
+          actionRequestId: approvedActionRequestId,
           session,
           eventType: status === 504 ? "call_failed" : "call_failed",
           outcome: status === 504 ? "timeout" : "failure",
